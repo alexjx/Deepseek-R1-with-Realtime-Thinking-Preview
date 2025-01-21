@@ -1,7 +1,7 @@
 """
 title: Deepseek R1 Manifold Pipe with Real-Time Thinking
 authors: [MCode-Team, Ethan Copping]
-author_url: [https://github.com/MCode-Team, https://github.com/EthanCopping]
+author_url: [https://github.com/MCode-Team, https://github.com/CoppingEthan]
 funding_url: https://github.com/open-webui
 version: 0.1.4
 required_open_webui_version: 0.5.0
