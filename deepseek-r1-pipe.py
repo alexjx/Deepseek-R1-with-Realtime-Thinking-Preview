@@ -3,7 +3,7 @@ title: Deepseek R1 Manifold Pipe with Real-Time Thinking
 authors: [MCode-Team, Ethan Copping]
 author_url: [https://github.com/MCode-Team, https://github.com/CoppingEthan]
 funding_url: https://github.com/open-webui
-version: 0.1.4
+version: 0.1.5
 required_open_webui_version: 0.5.0
 license: MIT
 environment_variables:
@@ -236,7 +236,7 @@ class Pipe:
                         await __event_emitter__(
                             {
                                 "type": "status",
-                                "data": {"description": "thinking...", "done": False},
+                                "data": {"description": "Thinking...", "done": False},
                             }
                         )
                     if response.status != 200:
@@ -256,6 +256,9 @@ class Pipe:
                     reasoning_content = ""
                     content = ""
                     is_thinking = False
+                    reasoning_start_time = None
+                    reasoning_stop_time = None
+                    reasoning_duration = None
                     last_status_update = time.time()
                     status_dots = 0
 
@@ -273,6 +276,7 @@ class Pipe:
                                     ):
                                         if not is_thinking:
                                             is_thinking = True
+                                            reasoning_start_time = time.time()
                                             yield "> "  # Start blockquote only once
 
                                         delta_text = delta["reasoning_content"]
@@ -288,6 +292,10 @@ class Pipe:
                                     if "content" in delta and delta["content"]:
                                         if is_thinking:
                                             is_thinking = False
+                                            reasoning_stop_time = time.time()
+                                            reasoning_duration = int(
+                                                reasoning_stop_time - reasoning_start_time
+                                            )
                                             yield "\n\n"  # Add separation between thinking and response
 
                                         content_chunk = delta["content"]
@@ -298,19 +306,30 @@ class Pipe:
                                         model_id == "deepseek-reasoner"
                                         and __event_emitter__
                                     ):
-                                        current_time = time.time()
-                                        if current_time - last_status_update > 1:
-                                            status_dots = (status_dots % 3) + 1
+                                        if is_thinking:
+                                            current_time = time.time()
+                                            if current_time - last_status_update > 1:
+                                                status_dots = (status_dots % 3) + 1
+                                                await __event_emitter__(
+                                                    {
+                                                        "type": "status",
+                                                        "data": {
+                                                            "description": f"Thinking{'...'[:status_dots]}",
+                                                            "done": False,
+                                                        },
+                                                    }
+                                                )
+                                                last_status_update = current_time
+                                        else:
                                             await __event_emitter__(
                                                 {
                                                     "type": "status",
                                                     "data": {
-                                                        "description": f"thinking{'...'[:status_dots]}",
-                                                        "done": False,
+                                                        "description": f"Tought for {reasoning_duration} seconds",
+                                                        "done": True,
                                                     },
                                                 }
                                             )
-                                            last_status_update = current_time
 
                                     if (
                                         data["choices"][0].get("finish_reason")
@@ -324,7 +343,7 @@ class Pipe:
                                                 {
                                                     "type": "status",
                                                     "data": {
-                                                        "description": "Request completed",
+                                                        "description": f"Request completed (thought for {reasoning_duration} seconds)",
                                                         "done": True,
                                                     },
                                                 }
