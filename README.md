@@ -2,7 +2,8 @@
 
 **Adapted code from CoppingEthan**
 
-Add time tracking for the thinking process of Deepseek R1.
+- Add time tracking for the thinking process of Deepseek R1.
+- Make the think block collaspable.
 
 **Adapted code from MCode-Team to add realtime preview of the thinking process for Deepseek R1 and Deepseek Chat.**
 

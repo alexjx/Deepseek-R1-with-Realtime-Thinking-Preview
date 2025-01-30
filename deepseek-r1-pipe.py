@@ -3,7 +3,7 @@ title: Deepseek R1 Manifold Pipe with Real-Time Thinking
 authors: [MCode-Team, Ethan Copping]
 author_url: [https://github.com/MCode-Team, https://github.com/CoppingEthan]
 funding_url: https://github.com/open-webui
-version: 0.1.5
+version: 0.1.6
 required_open_webui_version: 0.5.0
 license: MIT
 environment_variables:
@@ -31,6 +31,7 @@ from typing import (
 from pydantic import BaseModel, Field
 from open_webui.utils.misc import pop_system_message
 
+THINKING_BLOCK_REGEX = re.compile(r"<details type=\"reasoning\">(.*?)</details>\n---\n\n", re.DOTALL | re.MULTILINE)
 
 class Pipe:
     MODEL_MAX_TOKENS = {
@@ -124,6 +125,21 @@ class Pipe:
 
             if system_message:
                 messages.insert(0, {"role": "system", "content": str(system_message)})
+
+            # remove thinking content from messages
+            cleaned_messages = []
+            for message in messages:
+                # only remove '<details type="reasoning">...</details>' blocks from assistant messages
+                if message.get("role") != "assistant":
+                    cleaned_messages.append(message)
+                    continue
+                cleaned_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": THINKING_BLOCK_REGEX.sub("", message.get("content", "")),
+                    }
+                )
+            messages = cleaned_messages
 
             payload = {
                 "model": model_id,
@@ -277,7 +293,7 @@ class Pipe:
                                         if not is_thinking:
                                             is_thinking = True
                                             reasoning_start_time = time.time()
-                                            yield "> "  # Start blockquote only once
+                                            yield '<details type="reasoning">\n<summary>Thinking</summary>\n> '  # Start blockquote only once
 
                                         delta_text = delta["reasoning_content"]
                                         # Handle new lines in thinking content
@@ -296,7 +312,7 @@ class Pipe:
                                             reasoning_duration = int(
                                                 reasoning_stop_time - reasoning_start_time
                                             )
-                                            yield "\n\n"  # Add separation between thinking and response
+                                            yield "</details>\n---\n\n"  # Add separation between thinking and response
 
                                         content_chunk = delta["content"]
                                         content += content_chunk
