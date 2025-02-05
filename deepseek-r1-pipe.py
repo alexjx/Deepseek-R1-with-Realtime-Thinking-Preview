@@ -31,7 +31,10 @@ from typing import (
 from pydantic import BaseModel, Field
 from open_webui.utils.misc import pop_system_message
 
-THINKING_BLOCK_REGEX = re.compile(r"<details type=\"reasoning\">(.*?)</details>\n---\n\n", re.DOTALL | re.MULTILINE)
+THINKING_BLOCK_REGEX = re.compile(
+    r"<details type=\"reasoning\">(.*?)</details>\n---\n\n", re.DOTALL | re.MULTILINE
+)
+
 
 class Pipe:
     class Valves(BaseModel):
@@ -70,7 +73,7 @@ class Pipe:
         """Check if the model is a reasoner model"""
         if model_name.lower() == "deepseek-reasoner":
             return True
-        if model_name.lower().endswith('-r1'):
+        if model_name.lower().endswith("-r1"):
             return True
         return False
 
@@ -91,9 +94,9 @@ class Pipe:
             models = []
             for model in models_data.get("data", []):
                 model_id = model["id"].lower()
-                if model_id == 'deepseek-reasoner': # official
+                if model_id == "deepseek-reasoner":  # official
                     models.append({"id": model["id"], "name": model["id"]})
-                elif model_id.endswith('-r1'): # siliconflow or nvidia nim
+                elif model_id.endswith("-r1"):  # siliconflow or nvidia nim
                     models.append({"id": model["id"], "name": model["id"]})
             return models
         except Exception as e:
@@ -150,7 +153,9 @@ class Pipe:
                 cleaned_messages.append(
                     {
                         "role": "assistant",
-                        "content": THINKING_BLOCK_REGEX.sub("", message.get("content", "")),
+                        "content": THINKING_BLOCK_REGEX.sub(
+                            "", message.get("content", "")
+                        ),
                     }
                 )
             messages = cleaned_messages
@@ -324,7 +329,8 @@ class Pipe:
                                             is_thinking = False
                                             reasoning_stop_time = time.time()
                                             reasoning_duration = int(
-                                                reasoning_stop_time - reasoning_start_time
+                                                reasoning_stop_time
+                                                - reasoning_start_time
                                             )
                                             yield "</details>\n---\n\n"  # Add separation between thinking and response
 
@@ -332,7 +338,9 @@ class Pipe:
                                         content += content_chunk
                                         yield content_chunk
 
-                                    if __event_emitter__ and self.is_reasoner_model(model_id):
+                                    if __event_emitter__ and self.is_reasoner_model(
+                                        model_id
+                                    ):
                                         if is_thinking:
                                             current_time = time.time()
                                             if current_time - last_status_update > 1:
@@ -362,7 +370,10 @@ class Pipe:
                                         data["choices"][0].get("finish_reason")
                                         == "stop"
                                     ):
-                                        if __event_emitter__ and self.is_reasoner_model(model_id):
+                                        if (
+                                            __event_emitter__
+                                            and self.is_reasoner_model(model_id)
+                                        ):
                                             await __event_emitter__(
                                                 {
                                                     "type": "status",
