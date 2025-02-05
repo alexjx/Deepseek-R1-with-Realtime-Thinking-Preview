@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 from open_webui.utils.misc import pop_system_message
 
 THINKING_BLOCK_REGEX = re.compile(
-    r"<details type=\"reasoning\">(.*?)</details>\n---\n\n", re.DOTALL | re.MULTILINE
+    r"<details type=\"reasoning\"[^>]*>(.*?)</details>\n---\n\n", re.DOTALL | re.MULTILINE
 )
 
 
@@ -155,7 +155,7 @@ class Pipe:
                         "role": "assistant",
                         "content": THINKING_BLOCK_REGEX.sub(
                             "", message.get("content", "")
-                        ),
+                        ).strip(),
                     }
                 )
             messages = cleaned_messages
@@ -186,14 +186,6 @@ class Pipe:
                 "Content-Type": "application/json",
             }
 
-            if __event_emitter__ and self.is_reasoner_model(model_id):
-                await __event_emitter__(
-                    {
-                        "type": "status",
-                        "data": {"description": "thinking...", "done": False},
-                    }
-                )
-
             if payload["stream"]:
                 return self._stream_response(
                     url=f"{self.valves.DEEPSEEK_BASE_URL}/chat/completions",
@@ -201,6 +193,14 @@ class Pipe:
                     payload=payload,
                     __event_emitter__=__event_emitter__,
                     model_id=model_id,
+                )
+
+            if __event_emitter__ and self.is_reasoner_model(model_id):
+                await __event_emitter__(
+                    {
+                        "type": "status",
+                        "data": {"description": "Thinking...", "done": False},
+                    }
                 )
 
             async with aiohttp.ClientSession() as session:
