@@ -65,6 +65,15 @@ class Pipe:
         """Extract just the base model name from any format"""
         return model_name.split(".", 1)[-1]
 
+    @staticmethod
+    def is_reasoner_model(model_name: str) -> bool:
+        """Check if the model is a reasoner model"""
+        if model_name.lower() == "deepseek-reasoner":
+            return True
+        if model_name.lower().endswith('-r1'):
+            return True
+        return False
+
     def get_deepseek_models(self) -> List[Dict[str, str]]:
         """Fetch available models from Deepseek API"""
         try:
@@ -172,7 +181,7 @@ class Pipe:
                 "Content-Type": "application/json",
             }
 
-            if __event_emitter__ and model_id == "deepseek-reasoner":
+            if __event_emitter__ and self.is_reasoner_model(model_id):
                 await __event_emitter__(
                     {
                         "type": "status",
@@ -221,7 +230,7 @@ class Pipe:
                             combined_content += f"<{self.valves.THINK_XML_TAG}>\n{reasoning_content.strip()}\n</{self.valves.THINK_XML_TAG}>\n\n"
                         combined_content += content
                         final_response = self.format_thinking_tags(combined_content)
-                        if __event_emitter__ and model_id == "deepseek-reasoner":
+                        if __event_emitter__ and self.is_reasoner_model(model_id):
                             await __event_emitter__(
                                 {
                                     "type": "status",
@@ -253,7 +262,7 @@ class Pipe:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload) as response:
-                    if __event_emitter__ and model_id == "deepseek-reasoner":
+                    if __event_emitter__ and self.is_reasoner_model(model_id):
                         await __event_emitter__(
                             {
                                 "type": "status",
@@ -323,10 +332,7 @@ class Pipe:
                                         content += content_chunk
                                         yield content_chunk
 
-                                    if (
-                                        model_id == "deepseek-reasoner"
-                                        and __event_emitter__
-                                    ):
+                                    if __event_emitter__ and self.is_reasoner_model(model_id):
                                         if is_thinking:
                                             current_time = time.time()
                                             if current_time - last_status_update > 1:
@@ -356,10 +362,7 @@ class Pipe:
                                         data["choices"][0].get("finish_reason")
                                         == "stop"
                                     ):
-                                        if (
-                                            __event_emitter__
-                                            and model_id == "deepseek-reasoner"
-                                        ):
+                                        if __event_emitter__ and self.is_reasoner_model(model_id):
                                             await __event_emitter__(
                                                 {
                                                     "type": "status",
