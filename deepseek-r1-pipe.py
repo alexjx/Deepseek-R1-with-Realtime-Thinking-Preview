@@ -3,7 +3,7 @@ title: Deepseek R1 Manifold Pipe with Real-Time Thinking
 authors: [MCode-Team, Ethan Copping]
 author_url: [https://github.com/MCode-Team, https://github.com/CoppingEthan]
 funding_url: https://github.com/open-webui
-version: 0.1.6
+version: 0.1.7
 required_open_webui_version: 0.5.0
 license: MIT
 environment_variables:
@@ -34,11 +34,6 @@ from open_webui.utils.misc import pop_system_message
 THINKING_BLOCK_REGEX = re.compile(r"<details type=\"reasoning\">(.*?)</details>\n---\n\n", re.DOTALL | re.MULTILINE)
 
 class Pipe:
-    MODEL_MAX_TOKENS = {
-        "deepseek-chat": 8192,
-        "deepseek-reasoner": 8192,
-    }
-
     class Valves(BaseModel):
         DEEPSEEK_BASE_URL: str = Field(
             default=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
@@ -52,6 +47,10 @@ class Pipe:
             default=os.getenv("THINK_XML_TAG", "thinking"),
             description="XML tag used for thinking content",
         )
+        MAX_TOKENS: int = Field(
+            default=os.getenv("MAX_TOKENS", 8192),
+            description="Maximum tokens allowed for a single request",
+        )
 
     def __init__(self):
         logging.basicConfig(level=logging.INFO)
@@ -64,7 +63,7 @@ class Pipe:
     @staticmethod
     def get_model_id(model_name: str) -> str:
         """Extract just the base model name from any format"""
-        return model_name.replace(".", "/").split("/")[-1]
+        return model_name.split(".", 1)[-1]
 
     def get_deepseek_models(self) -> List[Dict[str, str]]:
         """Fetch available models from Deepseek API"""
@@ -78,10 +77,16 @@ class Pipe:
             )
             response.raise_for_status()
             models_data = response.json()
-            return [
-                {"id": model["id"], "name": model["id"]}
-                for model in models_data.get("data", [])
-            ]
+
+            # filter only deepseek-r1
+            models = []
+            for model in models_data.get("data", []):
+                model_id = model["id"].lower()
+                if model_id == 'deepseek-reasoner': # official
+                    models.append({"id": model["id"], "name": model["id"]})
+                elif model_id.endswith('-r1'): # siliconflow or nvidia nim
+                    models.append({"id": model["id"], "name": model["id"]})
+            return models
         except Exception as e:
             logging.error(f"Error getting models: {e}")
             return []
@@ -121,7 +126,7 @@ class Pipe:
                 raise ValueError("Model name is required")
 
             model_id = self.get_model_id(body["model"])
-            max_tokens_limit = self.MODEL_MAX_TOKENS.get(model_id, 8192)
+            max_tokens_limit = self.valves.MAX_TOKENS
 
             if system_message:
                 messages.insert(0, {"role": "system", "content": str(system_message)})
