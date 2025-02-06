@@ -1,5 +1,7 @@
 # Deepseek R1 Manifold Pipe with Real-Time Thinking
 
+This has changed to align with the distilled <think></think> tags which the upstream is handling natively.
+
 **Adapted code from CoppingEthan**
 
 - Add time tracking for the thinking process of Deepseek R1.
