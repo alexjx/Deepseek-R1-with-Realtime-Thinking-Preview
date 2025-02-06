@@ -3,7 +3,7 @@ title: Deepseek R1 Manifold Pipe with Real-Time Thinking
 authors: [MCode-Team, Ethan Copping]
 author_url: [https://github.com/MCode-Team, https://github.com/CoppingEthan]
 funding_url: https://github.com/open-webui
-version: 0.1.7
+version: 0.1.8
 required_open_webui_version: 0.5.0
 license: MIT
 environment_variables:
@@ -19,7 +19,6 @@ import logging
 import requests
 import aiohttp
 import re
-import time
 from typing import (
     List,
     Union,
@@ -32,7 +31,8 @@ from pydantic import BaseModel, Field
 from open_webui.utils.misc import pop_system_message
 
 THINKING_BLOCK_REGEX = re.compile(
-    r"<details type=\"reasoning\"[^>]*>(.*?)</details>\n---\n\n", re.DOTALL | re.MULTILINE
+    r'<details type="reasoning"[^>]*>(.*?)</details>',
+    re.DOTALL | re.MULTILINE,
 )
 
 
@@ -186,6 +186,7 @@ class Pipe:
                 "Content-Type": "application/json",
             }
 
+            # stream response if requested
             if payload["stream"]:
                 return self._stream_response(
                     url=f"{self.valves.DEEPSEEK_BASE_URL}/chat/completions",
@@ -195,6 +196,7 @@ class Pipe:
                     model_id=model_id,
                 )
 
+            # none-streaming response
             if __event_emitter__ and self.is_reasoner_model(model_id):
                 await __event_emitter__(
                     {
@@ -267,13 +269,6 @@ class Pipe:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload) as response:
-                    if __event_emitter__ and self.is_reasoner_model(model_id):
-                        await __event_emitter__(
-                            {
-                                "type": "status",
-                                "data": {"description": "Thinking...", "done": False},
-                            }
-                        )
                     if response.status != 200:
                         error_msg = (
                             f"Error: HTTP {response.status}: {await response.text()}"
@@ -288,15 +283,7 @@ class Pipe:
                         yield error_msg
                         return
 
-                    reasoning_content = ""
-                    content = ""
                     is_thinking = False
-                    reasoning_start_time = None
-                    reasoning_stop_time = None
-                    reasoning_duration = None
-                    last_status_update = time.time()
-                    status_dots = 0
-
                     async for line in response.content:
                         if line and line.startswith(b"data: "):
                             try:
@@ -311,78 +298,21 @@ class Pipe:
                                     ):
                                         if not is_thinking:
                                             is_thinking = True
-                                            reasoning_start_time = time.time()
-                                            yield '<details type="reasoning">\n<summary>Thinking</summary>\n> '  # Start blockquote only once
-
-                                        delta_text = delta["reasoning_content"]
-                                        # Handle new lines in thinking content
-                                        if "\n" in delta_text:
-                                            delta_text = delta_text.replace(
-                                                "\n", "\n> "
-                                            )
-                                        yield delta_text
-                                        reasoning_content += delta_text
+                                            yield "<think>\n"  # initiate think protocol
+                                        yield delta["reasoning_content"]
 
                                     # Handle final response content
                                     if "content" in delta and delta["content"]:
                                         if is_thinking:
                                             is_thinking = False
-                                            reasoning_stop_time = time.time()
-                                            reasoning_duration = int(
-                                                reasoning_stop_time
-                                                - reasoning_start_time
-                                            )
-                                            yield "</details>\n---\n\n"  # Add separation between thinking and response
+                                            yield "\n</think>\n"  # ending think protocol
 
-                                        content_chunk = delta["content"]
-                                        content += content_chunk
-                                        yield content_chunk
-
-                                    if __event_emitter__ and self.is_reasoner_model(
-                                        model_id
-                                    ):
-                                        if is_thinking:
-                                            current_time = time.time()
-                                            if current_time - last_status_update > 1:
-                                                status_dots = (status_dots % 3) + 1
-                                                await __event_emitter__(
-                                                    {
-                                                        "type": "status",
-                                                        "data": {
-                                                            "description": f"Thinking{'...'[:status_dots]}",
-                                                            "done": False,
-                                                        },
-                                                    }
-                                                )
-                                                last_status_update = current_time
-                                        else:
-                                            await __event_emitter__(
-                                                {
-                                                    "type": "status",
-                                                    "data": {
-                                                        "description": f"Tought for {reasoning_duration} seconds",
-                                                        "done": True,
-                                                    },
-                                                }
-                                            )
+                                        yield delta["content"]
 
                                     if (
                                         data["choices"][0].get("finish_reason")
                                         == "stop"
                                     ):
-                                        if (
-                                            __event_emitter__
-                                            and self.is_reasoner_model(model_id)
-                                        ):
-                                            await __event_emitter__(
-                                                {
-                                                    "type": "status",
-                                                    "data": {
-                                                        "description": f"Request completed (thought for {reasoning_duration} seconds)",
-                                                        "done": True,
-                                                    },
-                                                }
-                                            )
                                         break
 
                             except json.JSONDecodeError as e:
