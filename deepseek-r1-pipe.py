@@ -98,6 +98,11 @@ class Pipe:
                     models.append({"id": model["id"], "name": model["id"]})
                 elif model_id.endswith("-r1"):  # siliconflow or nvidia nim
                     models.append({"id": model["id"], "name": model["id"]})
+
+            # ali bailian will not return the -r1 models, force add it
+            if not models and 'dashscope.aliyuncs.com' in self.valves.DEEPSEEK_BASE_URL:
+                models.append({"id": "deepseek-r1", "name": "deepseek-r1"})
+
             return models
         except Exception as e:
             logging.error(f"Error getting models: {e}")
